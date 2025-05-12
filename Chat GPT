@@ -1,0 +1,75 @@
+#include <Servo.h>
+
+Servo escLift;   // ESC for lift motor
+Servo escDrive;  // ESC for drive motor
+
+const int liftInputPin = 2;      // RC input for lift (CH2)
+const int driveInputPin = 3;     // RC input for drive (CH3)
+const int escLiftPin = 9;        // ESC output for lift
+const int escDrivePin = 10;      // ESC output for drive
+
+const int upperLimitPin = 6;     // Upper limit switch (NC)
+const int lowerLimitPin = 7;     // Lower limit switch (NC)
+
+unsigned long liftPWM = 1000;    // Pulse width from CH2
+unsigned long drivePWM = 1000;   // Pulse width from CH3
+
+void setup() {
+  Serial.begin(9600);
+
+  // Set up limit switch pins
+  pinMode(upperLimitPin, INPUT_PULLUP); // NC = closed = LOW
+  pinMode(lowerLimitPin, INPUT_PULLUP);
+
+  // Set up RC input pins
+  pinMode(liftInputPin, INPUT);
+  pinMode(driveInputPin, INPUT);
+
+  // Attach ESCs
+  escLift.attach(escLiftPin);
+  escDrive.attach(escDrivePin);
+
+  // Arm ESCs
+  escLift.writeMicroseconds(1000);
+  escDrive.writeMicroseconds(1000);
+  delay(5000); // Wait for ESCs to arm
+}
+
+void loop() {
+  // Read RC input signals (with timeout)
+  liftPWM = pulseIn(liftInputPin, HIGH, 25000);
+  drivePWM = pulseIn(driveInputPin, HIGH, 25000);
+
+  // Read limit switches
+  bool upperLimit = digitalRead(upperLimitPin) == HIGH;
+  bool lowerLimit = digitalRead(lowerLimitPin) == HIGH;
+
+  // Validate lift input
+  if (liftPWM >= 1000 && liftPWM <= 2000) {
+    if (upperLimit && liftPWM > 1500) {
+      liftPWM = 1500; // Block upward
+    }
+    if (lowerLimit && liftPWM < 1500) {
+      liftPWM = 1500; // Block downward
+    }
+    escLift.writeMicroseconds(liftPWM);
+    Serial.print("Lift: ");
+    Serial.print(liftPWM);
+    Serial.print("\t");
+  } else {
+    escLift.writeMicroseconds(1000); // Fail-safe
+    Serial.print("Lift: 1000\t");
+  }
+
+  // Validate drive input
+  if (drivePWM >= 1000 && drivePWM <= 2000) {
+    escDrive.writeMicroseconds(drivePWM);
+    Serial.print("Drive: ");
+    Serial.println(drivePWM);
+  } else {
+    escDrive.writeMicroseconds(1000); // Fail-safe
+    Serial.println("Drive: 1000");
+  }
+
+  delay(20); // 50Hz loop
+}
